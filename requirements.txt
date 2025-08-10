@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+whisper
+ffmpeg-python
+python-multipart
+pydub
+sqlalchemy
+databases
