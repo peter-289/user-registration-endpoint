@@ -1,8 +1,12 @@
 fastapi
 uvicorn[standard]
-whisper
-ffmpeg-python
-python-multipart
-pydub
 sqlalchemy
+SQLAlchemy
 databases
+bcrypt
+passlib[bcrypt]
+pydantic
+python-jose[cryptography]
+python-dotenv
+slowapi
+redis
