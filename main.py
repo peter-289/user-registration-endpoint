@@ -47,7 +47,8 @@ def seed_admin():
             user_name="admin",
             email=admin_email,
             password=pwd_context.hash(ADMIN_PASSWORD),
-            role=UserRole.ADMIN
+            role=UserRole.ADMIN,
+            email_verified=True
         )
         db.add(admin)
         db.commit()

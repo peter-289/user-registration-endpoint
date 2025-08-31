@@ -19,3 +19,4 @@ class User(Base):
     role=Column(Enum(UserRole), default=UserRole.ANONYMOUS_USER,nullable=False)
     is_active=Column(Boolean, default=True)
     time_registered=Column(DateTime, default=datetime.utcnow)
+    email_verified=Column(Boolean, default=False)

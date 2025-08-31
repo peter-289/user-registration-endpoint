@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f4f4f7;
+          padding: 20px;
+          margin: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: auto;
+          background: #ffffff;
+          padding: 30px;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h2 {
+          color: #4CAF50;
+        }
+        p {
+          color: #555555;
+          line-height: 1.6;
+        }
+        .button {
+          display: inline-block;
+          margin-top: 20px;
+          padding: 12px 24px;
+          font-size: 16px;
+          color: white;
+          background-color: #4CAF50;
+          text-decoration: none;
+          border-radius: 8px;
+        }
+        .footer {
+          margin-top: 30px;
+          font-size: 12px;
+          color: #999999;
+          text-align: center;
+        }
+
+        /* 🌙 Dark mode support */
+        @media (prefers-color-scheme: dark) {
+          body {
+            background-color: #121212;
+          }
+          .container {
+            background: #1e1e1e;
+            color: #e0e0e0;
+          }
+          h2 {
+            color: #76ff03; /* neon green */
+          }
+          p {
+            color: #cccccc;
+          }
+          .footer {
+            color: #777777;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Welcome to Tech Pulse 🎉</h2>
+        <p style="color: #555555; line-height: 1.6;">Hi, <b>{{email}}</b>,</p>
+        <p>Your account is almost ready! Just one last step: verify your email address by clicking the button below.</p>
+
+        <a href="{{verification_link}}" class="button">Verify My Account</a>
+        <hr>
+        <p>If you didn’t sign up for Tech Pulse, you can safely ignore this email.</p>
+        
+        <div class="footer">
+          <div style="margin-bottom: 10px;">
+            <a href="https://twitter.com/" style="margin: 0 8px; display: inline-block;" target="_blank" rel="noopener">
+              <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/twitter.svg" alt="Twitter" width="22" height="22" style="vertical-align: middle; filter: grayscale(1) brightness(0.7);">
+            </a>
+            <a href="https://facebook.com/" style="margin: 0 8px; display: inline-block;" target="_blank" rel="noopener">
+              <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/facebook.svg" alt="Facebook" width="22" height="22" style="vertical-align: middle; filter: grayscale(1) brightness(0.7);">
+            </a>
+            <a href="https://linkedin.com/" style="margin: 0 8px; display: inline-block;" target="_blank" rel="noopener">
+              <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/linkedin.svg" alt="LinkedIn" width="22" height="22" style="vertical-align: middle; filter: grayscale(1) brightness(0.7);">
+            </a>
+            <a href="https://instagram.com/" style="margin: 0 8px; display: inline-block;" target="_blank" rel="noopener">
+              <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" alt="Instagram" width="22" height="22" style="vertical-align: middle; filter: grayscale(1) brightness(0.7);">
+            </a>
+          </div>
+          <span style="display:block; margin-top:8px;">&copy; {2025} Tech Pulse. All rights reserved.</span>
+        </div>
+      </div>
+    </body>
+    </html>

@@ -1,18 +1,24 @@
 import datetime
 import jwt as pwjt
 from config import limiter
-from fastapi import APIRouter, Request
+from fastapi import  BackgroundTasks,APIRouter, Request, Response
 from sqlalchemy.orm import Session
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY, ALGORITHIM
 from models.user_model import User
 from passlib.context import CryptContext
 from datetime import timedelta, timezone
 from database.database_setup import get_db
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, Cookie
 from fastapi.security import OAuth2PasswordRequestForm
 from security_utilities.auth import create_access_token
-from security_utilities.dependencies import get_current_user
+from security_utilities.dependencies import create_refresh_token, get_current_user
 from schemas.user_schema import UserCreate, UserResponse
 from security_utilities.pass_hash import hash_password, verify_password
+from security_utilities.email_verification import create_email_token
+from services.email_service import send_verification_email
+from security_utilities.email_verification import verify_email_token
+from fastapi_mail import FastMail, MessageSchema
+from config import mail_config
 
 
 
@@ -21,9 +27,14 @@ router = APIRouter(prefix="/users")
 
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register")
 @limiter.limit("5/minute")
-async def register_user(request:Request, user: UserCreate, db: Session = Depends(get_db)):
+async def register_user(
+    request:Request,
+    user: UserCreate, 
+    background_tasks:BackgroundTasks,
+    db: Session = Depends(get_db)):
+
     #Existing user
     existing_user = db.query(User).filter(User.email == user.email).first()
     user_name_exists=db.query(User).filter(User.user_name == user.user_name).first()
@@ -45,24 +56,37 @@ async def register_user(request:Request, user: UserCreate, db: Session = Depends
          full_name =user.full_name,
          user_name =user.user_name,
          email =user.email,
-         password = hashed_password
+         password = hashed_password,
+         email_verified = False
     )
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
 
+    token = create_email_token(new_user.email)
+    background_tasks.add_task(send_verification_email, new_user.email, token)
+
+    return {
+        "message": "User registered successfully! Please check your email to verify your account.",
+        
+    }
 
 ##Login route
 @router.post("/login")
 @limiter.limit("4/minute")
-def login(request:Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request:Request, response:Response,form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.user_name == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=401,
+            detail="Email not verified, please verify your email first!",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
@@ -72,8 +96,106 @@ def login(request:Request, form_data: OAuth2PasswordRequestForm = Depends(), db:
         "exp": datetime.datetime.now(timezone.utc) + timedelta(hours=1)
     }
     token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,       
+        secure=True,         
+        samesite="Strict",  
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+         httponly=True,       
+        secure=True,         
+        samesite="Strict",  
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    )
     return {
-        "access_token": token,
-        "token_type": "bearer"
+       "message":"Login successfull!"
     }
 
+
+##User profile
+@router.get("/my-profile")
+def get_my_profile(current_user: User= Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.user_name,
+        "email": current_user.email,
+        "role": current_user.role.value
+    }
+
+##User Logout
+@router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=True,      # same flags as login
+        samesite="Strict"
+    )
+    return {"message": "Logged out successfully"}
+
+
+##Token refresh
+@router.post("/refresh")
+def refresh_token(response: Response, refresh_token: str = Cookie(None)):
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token provided")
+
+    try:
+        payload = pwjt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHIM])
+        user_email = payload.get("sub")
+        if not user_email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except pwjt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except pwjt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    # create new access token
+    new_access_token = create_access_token({"sub": user_email})
+    response.set_cookie(
+        "access_token", 
+        new_access_token, 
+        httponly=True, 
+        secure=True,
+        samesite="Strict"
+    )
+
+    return {"message": "Token refreshed"}
+
+
+##email verification
+@router.get("/verify")
+def verify_account(token: str, db: Session = Depends(get_db)):
+    email = verify_email_token(token)
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email_verified:
+        return {"message": "Account already verified"}
+
+    user.email_verified = True
+    db.commit()
+    return {"message": "Account verified successfully"}
+
+
+
+##Testmail
+@router.get("/test-email")
+async def test_email():
+    message = MessageSchema(
+        subject="Hello from Tech Pulse 🚀",
+        recipients=["test@receiver.com"],  # Doesn’t matter, MailHog catches everything
+        body="<h3>This is a test email from FastAPI-Mail ✅</h3>",
+        subtype="html"
+    )
+
+    fm = FastMail(mail_config)
+    await fm.send_message(message)

@@ -10,3 +10,5 @@ python-jose[cryptography]
 python-dotenv
 slowapi
 redis
+fastapi-mail
+jinja2

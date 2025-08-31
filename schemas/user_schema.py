@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from models.user_model import UserRole
 
@@ -15,7 +16,8 @@ class UserResponse(BaseModel):
     email:EmailStr
     role:UserRole
     is_active:bool
-    #time_registered:datetime
+    time_registered:datetime
+    email_verified:bool
 
     class Config:
         from_attributes=True
