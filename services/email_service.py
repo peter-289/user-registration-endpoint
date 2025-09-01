@@ -6,7 +6,7 @@ async def send_verification_email(email: str, token: str):
     verification_link = f"http://127.0.0.1:8000/users/verify?token={token}"
 
     env = Environment(loader=FileSystemLoader("templates"))
-    template = env.get_template("email_templates/verify_email.html")
+    template = env.get_template("email_templates/verify_account.html")
     body = template.render(email=email, verification_link=verification_link)
 
     message = MessageSchema(
@@ -25,4 +25,26 @@ async def send_verification_email(email: str, token: str):
     fm = FastMail(mail_config)
     await fm.send_message(message)
 
-    
+
+async def send_reset_email(email: str, token: str):
+    reset_link = f"http://127.0.0.1:8000/users/reset-password?token={token}"
+
+    env = Environment(loader=FileSystemLoader("templates"))
+    template = env.get_template("email_templates/password_reset_email.html")
+    body = template.render(email=email, reset_link=reset_link)
+
+    message = MessageSchema(
+        subject="Reset your Tech Pulse password",
+        recipients=[email],
+        cc=["support@techpulse.com"],
+        bcc=["audit@techpulse.com"],
+        reply_to=["noreply@techpulse.com"],
+        body=body,
+        subtype="html"
+    )
+
+    ##Send the email
+    print(f"Password reset email queued for {email} with token {token}")
+
+    fm = FastMail(mail_config)
+    await fm.send_message(message)

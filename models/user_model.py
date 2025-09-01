@@ -20,3 +20,6 @@ class User(Base):
     is_active=Column(Boolean, default=True)
     time_registered=Column(DateTime, default=datetime.utcnow)
     email_verified=Column(Boolean, default=False)
+
+    password_reset_token = Column(String(255), nullable=True)
+    password_reset_token_expiry = Column(DateTime, nullable=True)
