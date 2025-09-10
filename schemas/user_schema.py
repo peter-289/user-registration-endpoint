@@ -21,4 +21,9 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes=True
+class UserLogin(BaseModel):
+    user_name:str
+    password:str
 
+    class Config:
+        from_attributes=True

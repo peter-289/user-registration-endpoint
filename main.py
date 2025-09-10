@@ -21,7 +21,7 @@ app=FastAPI()
 Base.metadata.create_all(bind=engine)
 #Base.metadata.drop_all(bind=engine)
 
-origins = FRONT_END_URL
+origins = [FRONT_END_URL]
 
 #CORS middleware
 app.add_middleware(

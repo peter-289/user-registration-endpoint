@@ -5,13 +5,12 @@ from config import SECRET_KEY, ALGORITHIM, REFRESH_TOKEN_EXPIRE_DAYS
 from database.database_setup import get_db
 from fastapi import Depends, HTTPException, Request
 from models.user_model import User, UserRole
-from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timezone, timedelta
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
 
 
-def get_current_user(request:Request,token:str = Depends(oauth2_scheme),db:Session=Depends(get_db)):
+
+def get_current_user(request:Request,db:Session=Depends(get_db)):
     token=request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Missing token!")

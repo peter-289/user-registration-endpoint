@@ -1,6 +1,8 @@
 import secrets
 import datetime as dt
+from fastapi.responses import HTMLResponse
 import jwt as pwjt
+from pydantic import BaseModel
 from urllib3 import request
 from config import limiter
 from fastapi import  BackgroundTasks,APIRouter, Request, Response
@@ -24,6 +26,7 @@ from config import mail_config
 from passlib.hash import bcrypt
 from fastapi import Form
 import fastapi.templating as Jinja
+from schemas.user_schema import UserLogin
 
 templates = Jinja.Jinja2Templates(directory="templates/email_templates")
 
@@ -73,18 +76,18 @@ async def register_user(
     token = create_email_token(new_user.email)
     background_tasks.add_task(send_verification_email, new_user.email, token)
 
+
     return {
-        "message": "User registered successfully! Please check your email to verify your account.",
+        "detail": "User registered successfully! Please check your email to verify your account.",
         
     }
 
 
 ##Login route
 @router.post("/login")
-@limiter.limit("4/minute")
-def login(request:Request, response:Response,form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.user_name == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password):
+def login(login_req: UserLogin, response:Response, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.user_name == login_req.user_name).first()
+    if not user or not verify_password(login_req.password, user.password):
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials",
@@ -102,39 +105,51 @@ def login(request:Request, response:Response,form_data: OAuth2PasswordRequestFor
         "role": user.role.value,
         "exp": dt.datetime.now(timezone.utc) + timedelta(hours=1)
     }
-    token = create_access_token(token_data)
+    access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
 
     response.set_cookie(
         key="access_token",
-        value=token,
+        value=access_token,
         httponly=True,       
-        secure=True,         
-        samesite="Strict",  
+        secure=False,         # set to True in production
+        samesite="None",  
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-         httponly=True,       
-        secure=True,         
-        samesite="Strict",  
+        httponly=True,
+        secure=False,         # set to True in production
+        samesite="None",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     return {
-       "message":"Login successfull!"
+       "detail":"Login successfull!"
     }
 
 
 ##User profile
-@router.get("/my-profile")
-def get_my_profile(current_user: User= Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "username": current_user.user_name,
-        "email": current_user.email,
-        "role": current_user.role.value
-    }
+class UserProfileResponse(BaseModel):
+    id: int
+    full_name: str
+    user_name: str
+    email: str
+    role: str
+
+@router.get("/my-profile", response_model=UserProfileResponse, summary="Get current user's profile")
+def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfileResponse:
+    """
+    Retrieve the profile information of the currently authenticated user.
+    """
+    return UserProfileResponse(
+        id=current_user.id,
+        full_name=current_user.full_name,
+        user_name=current_user.user_name,
+        email=current_user.email,
+        role=current_user.role.value
+    )
+
 
 ##User Logout
 @router.post("/logout")
@@ -145,7 +160,7 @@ def logout(response: Response):
         secure=True,      # same flags as login
         samesite="Strict"
     )
-    return {"message": "Logged out successfully"}
+    return {"detail": "Logged out successfully"}
 
 
 ##Token refresh
@@ -174,23 +189,26 @@ def refresh_token(response: Response, refresh_token: str = Cookie(None)):
         samesite="Strict"
     )
 
-    return {"message": "Token refreshed"}
+    return {"detail": "Token refreshed"}
 
 
 ##email verification
-@router.get("/verify")
-def verify_account(token: str, db: Session = Depends(get_db)):
+@router.get("/verify", response_class=HTMLResponse)
+def verify_account(request:Request, token: str, db: Session = Depends(get_db)):
     email = verify_email_token(token)
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if user.email_verified:
-        return {"message": "Account already verified"}
+        return templates.TemplateResponse("account_already_verified.html", {"request": request})
 
     user.email_verified = True
     db.commit()
-    return {"message": "Account verified successfully"}
+    return templates.TemplateResponse(
+        "account_registration_success.html", {"request": request}
+    )
+
 
 ##Resend verification
 @router.get("/resend-verification")
@@ -199,8 +217,8 @@ async def resend_verification(email: str, db: Session = Depends(get_db)):
     if user and not user.email_verified:
         token = create_email_token(user)
         await send_verification_email(user.email, token)
-        return {"message": "Verification email resent!"}
-    return {"message": "User already verified or not found."}
+        return {"detail": "Verification email resent!"}
+    return {"detail": "User already verified or not found."}
 
 
 ##reset password
@@ -208,7 +226,7 @@ async def resend_verification(email: str, db: Session = Depends(get_db)):
 def forgot_password(request: Request, background_tasks: BackgroundTasks, email: str=Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        return {"message": "User not found."}
+        return {"detail": "User not found."}
 
     token = secrets.token_urlsafe(3)
     expiry = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1)
@@ -219,7 +237,7 @@ def forgot_password(request: Request, background_tasks: BackgroundTasks, email: 
     background_tasks.add_task(send_reset_email, user.email, token)  # send email with reset link
     return templates.TemplateResponse(
         "reset_password_request.html",
-        {"request": request, "message": "Password reset email sent if the email is registered."}
+        {"request": request, "detail": "Password reset email sent if the email is registered."}
     )
 
     
